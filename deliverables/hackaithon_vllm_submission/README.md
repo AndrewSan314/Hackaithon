@@ -1,29 +1,29 @@
-# Hackaithon MCQ vLLM Submission Bundle
+# Bộ nộp bài Hackaithon MCQ vLLM
 
-This folder contains the reproducible inference package derived from
+Thư mục này chứa gói suy luận có thể tái tạo (reproducible inference package) được trích xuất từ
 `hackaithon-vllm (1).ipynb`.
 
-## Contents
+## Nội dung
 
-- `Dockerfile`: container definition for Docker Hub.
-- `entrypoint.sh`: reads `/data/private_test.csv` or `/data/public_test.csv` and writes `/output/pred.csv`.
-- `src/hackaithon-vllm.ipynb`: thin notebook runner for the Python package.
-- `src/hackaithon_vllm_pipeline.py`: compatibility wrapper.
-- `src/hackaithon_vllm/`: refactored Python package; runtime supports `ckpt12_internal_rag` only.
-- `outputs/pred.csv`: latest public-test prediction snapshot.
-- `outputs/rag_vector_db_final.zip`: final Law/Admin RAG vector DB artifact.
-- `docs/method_report.tex`: LaTeX method document.
+- `Dockerfile`: định nghĩa container cho Docker Hub.
+- `entrypoint.sh`: đọc `/data/private_test.csv` hoặc `/data/public_test.csv` và ghi ra `/output/pred.csv`.
+- `src/hackaithon-vllm.ipynb`: notebook runner mỏng cho gói Python.
+- `src/hackaithon_vllm_pipeline.py`: wrapper tương thích.
+- `src/hackaithon_vllm/`: gói Python đã được cấu trúc lại (refactored); runtime chỉ hỗ trợ `ckpt12_internal_rag`.
+- `outputs/pred.csv`: bản chụp dự đoán (prediction snapshot) mới nhất cho public-test.
+- `outputs/rag_vector_db_final.zip`: artifact cơ sở dữ liệu vector RAG cuối cùng về Luật/Hành chính.
+- `docs/method_report.tex`: tài liệu phương pháp bằng LaTeX.
 
-## Expected Runtime Mounts
+## Các mount điểm dự kiến khi chạy (Expected Runtime Mounts)
 
-The image does not bake in the 9B model, BGE model, or LoRA adapter. Mount them:
+Image này không tích hợp sẵn mô hình 9B, mô hình BGE, hoặc adapter LoRA. Vui lòng mount chúng:
 
-- `/models`: Qwen3.5-9B local Hugging Face model folder, or a parent containing it.
-- `/bge/bge-m3`: BGE-M3 local Hugging Face model folder.
-- `/adapters`: QLoRA adapter folder, or a parent containing `adapter_config.json`.
-- `/rag/rag_vector_db_final`: extracted final RAG DB folder.
-- `/data`: contains `private_test.csv` or `public_test.csv`.
-- `/output`: output directory for `pred.csv`.
+- `/models`: Thư mục mô hình Hugging Face cục bộ của Qwen3.5-9B, hoặc thư mục cha chứa nó.
+- `/bge/bge-m3`: Thư mục mô hình Hugging Face cục bộ của BGE-M3.
+- `/adapters`: Thư mục adapter QLoRA, hoặc thư mục cha chứa `adapter_config.json`.
+- `/rag/rag_vector_db_final`: Thư mục RAG DB cuối cùng đã được giải nén.
+- `/data`: chứa `private_test.csv` hoặc `public_test.csv`.
+- `/output`: thư mục đầu ra cho `pred.csv`.
 
 ## Build
 
@@ -31,7 +31,7 @@ The image does not bake in the 9B model, BGE model, or LoRA adapter. Mount them:
 docker build -t hackaithon-vllm-submission:latest .
 ```
 
-## Run
+## Chạy (Run)
 
 ```bash
 docker run --rm --gpus all \
@@ -44,7 +44,7 @@ docker run --rm --gpus all \
   hackaithon-vllm-submission:latest
 ```
 
-The equivalent module entrypoint is:
+Entrypoint tương đương cho module là:
 
 ```bash
 PYTHONPATH=src python -m hackaithon_vllm.run \
@@ -56,23 +56,23 @@ PYTHONPATH=src python -m hackaithon_vllm.run \
   --rag-db-dir /rag/rag_vector_db_final
 ```
 
-The entrypoint writes:
+Entrypoint sẽ ghi ra:
 
 ```text
 /output/pred.csv
 ```
 
-with exactly:
+với định dạng chính xác là:
 
 ```text
 qid,answer
 ```
 
-## Notes
+## Ghi chú
 
-The runtime intentionally keeps only the production checkpoint
-`ckpt12_internal_rag`; older development checkpoints were removed from the
-container path. The final public-test snapshot in `outputs/pred.csv` scored
-`429/463` against the current internal round-4 reference used during local
-review. This reference is not part of the container contract; it is only included
-here as development context.
+Runtime cố ý chỉ giữ lại checkpoint chạy thực tế (production)
+`ckpt12_internal_rag`; các checkpoint phát triển cũ đã bị loại bỏ khỏi
+đường dẫn của container. Bản chụp public-test cuối cùng ở `outputs/pred.csv` đạt
+điểm `429/463` dựa trên tham chiếu nội bộ vòng 4 (round-4 reference) hiện tại được sử dụng trong quá trình
+đánh giá cục bộ. Tham chiếu này không thuộc phạm vi hợp đồng container; nó chỉ được đưa vào
+đây như một ngữ cảnh phát triển.
