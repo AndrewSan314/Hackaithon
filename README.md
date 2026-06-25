@@ -1,7 +1,9 @@
-# Hackaithon MCQ vLLM Submission Bundle
+# Hackaithon MCQ vLLM Submission
 
-This folder contains the reproducible inference package derived from
-`hackaithon-vllm (1).ipynb`.
+This repository root is the reproducible inference package derived from
+`hackaithon-vllm (1).ipynb`. It runs the production checkpoint
+`ckpt12_internal_rag` only and writes the required submission file
+`/output/pred.csv` with columns `qid,answer`.
 
 ## Contents
 
@@ -25,6 +27,10 @@ The image does not bake in the 9B model, BGE model, or LoRA adapter. Mount them:
 - `/data`: contains `private_test.csv` or `public_test.csv`.
 - `/output`: output directory for `pred.csv`.
 
+If the final Law/Admin RAG DB is provided from this repository, extract
+`outputs/rag_vector_db_final.zip` first and mount the extracted folder as
+`/rag/rag_vector_db_final`.
+
 ## Build
 
 ```bash
@@ -32,6 +38,9 @@ docker build -t hackaithon-vllm-submission:latest .
 ```
 
 ## Run
+
+Input can be either `/data/private_test.csv` or `/data/public_test.csv`.
+The container auto-detects the file unless `DATA_PATH` is set.
 
 ```bash
 docker run --rm --gpus all \
@@ -44,7 +53,23 @@ docker run --rm --gpus all \
   hackaithon-vllm-submission:latest
 ```
 
-The equivalent module entrypoint is:
+Optional explicit env form:
+
+```bash
+docker run --rm --gpus all \
+  -e DATA_PATH=/data/private_test.csv \
+  -e PRED_PATH=/output/pred.csv \
+  -e CHECKPOINT_TO_RUN=ckpt12_internal_rag \
+  -v /path/to/test_data:/data:ro \
+  -v /path/to/qwen_models:/models:ro \
+  -v /path/to/bge-m3:/bge/bge-m3:ro \
+  -v /path/to/adapter_parent:/adapters:ro \
+  -v /path/to/rag_vector_db_final:/rag/rag_vector_db_final:ro \
+  -v /path/to/output:/output \
+  hackaithon-vllm-submission:latest
+```
+
+For local debugging without Docker, use the same package entrypoint:
 
 ```bash
 PYTHONPATH=src python -m hackaithon_vllm.run \
@@ -56,7 +81,18 @@ PYTHONPATH=src python -m hackaithon_vllm.run \
   --rag-db-dir /rag/rag_vector_db_final
 ```
 
-The entrypoint writes:
+Important env/CLI knobs:
+
+- `DATA_PATH` / `--data`: input CSV or JSON file.
+- `PRED_PATH` / `--output`: output CSV path, default `/output/pred.csv`.
+- `MODEL_ROOT` / `--model-root`: parent folder containing the Qwen model.
+- `BGE_MODEL_DIR` / `--bge-model-dir`: BGE-M3 folder.
+- `ADAPTER_ROOT` / `--adapter-root`: parent folder containing the QLoRA adapter.
+- `ADAPTER_DIR` / `--adapter-dir`: exact adapter folder if known.
+- `LAW_ADMIN_VECTOR_DB_DIR` / `--rag-db-dir`: final Law/Admin vector DB folder.
+- `LIMIT` / `--limit`: optional smoke-test row limit.
+
+The entrypoint always writes:
 
 ```text
 /output/pred.csv
