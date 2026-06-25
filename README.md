@@ -1,54 +1,76 @@
-# Hackaithon MCQ vLLM Submission
+# Bộ nộp bài Hackaithon MCQ vLLM
 
-This repository root is the reproducible inference package derived from
-`hackaithon-vllm (1).ipynb`. It runs the production checkpoint
-`ckpt12_internal_rag` only and writes the required submission file
-`/output/pred.csv` with columns `qid,answer`.
+Repository này chứa gói suy luận có thể tái tạo từ notebook
+`hackaithon-vllm (1).ipynb`. Runtime chỉ giữ checkpoint production
+`ckpt12_internal_rag` và ghi file nộp bài bắt buộc tại `/output/pred.csv`
+với đúng hai cột:
 
-## Contents
+```text
+qid,answer
+```
 
-- `Dockerfile`: container definition for Docker Hub.
-- `entrypoint.sh`: reads `/data/private_test.csv` or `/data/public_test.csv` and writes `/output/pred.csv`.
-- `src/hackaithon-vllm.ipynb`: thin notebook runner for the Python package.
+## Nội dung
+
+- `Dockerfile`: định nghĩa image để build/push Docker Hub.
+- `entrypoint.sh`: tự tìm file test trong `/data`, chạy pipeline và ghi `/output/pred.csv`.
+- `src/hackaithon-vllm.ipynb`: notebook runner mỏng gọi package Python.
 - `src/hackaithon_vllm_pipeline.py`: compatibility wrapper.
-- `src/hackaithon_vllm/`: refactored Python package; runtime supports `ckpt12_internal_rag` only.
-- `outputs/pred.csv`: latest public-test prediction snapshot.
-- `outputs/rag_vector_db_final.zip`: final Law/Admin RAG vector DB artifact.
-- `outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`: production QLoRA adapter artifact.
-- `docs/method_report.tex`: LaTeX method document.
+- `src/hackaithon_vllm/`: package Python đã tách module, runtime ckpt12-only.
+- `outputs/pred.csv`: prediction snapshot mới nhất trên public test.
+- `outputs/rag_vector_db_final.zip`: artifact Law/Admin RAG vector DB cuối cùng.
+- `outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`: artifact QLoRA adapter production.
+- `docs/method_report.tex`: tài liệu thuyết minh phương pháp bằng LaTeX.
+- `docs/method_report.pdf`: bản PDF preview của tài liệu thuyết minh.
 
-## Expected Runtime Mounts
+## Yêu cầu mount khi chạy
 
-The image does not bake in the 9B model or BGE model. Mount them:
+Image không bake sẵn model Qwen3.5-9B và BGE-M3, nên cần mount:
 
-- `/models`: Qwen3.5-9B local Hugging Face model folder, or a parent containing it.
-- `/bge/bge-m3`: BGE-M3 local Hugging Face model folder.
-- `/data`: contains `private_test.csv` or `public_test.csv`.
-- `/output`: output directory for `pred.csv`.
+- `/models`: thư mục model Qwen3.5-9B định dạng Hugging Face, hoặc thư mục cha chứa model.
+- `/bge/bge-m3`: thư mục model BGE-M3 định dạng Hugging Face.
+- `/data`: chứa `private_test.csv`, `public_test.csv` hoặc biến thể `.json`.
+- `/output`: thư mục nhận file `/output/pred.csv`.
 
-The QLoRA adapter is included in this repository as
-`outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`. During container startup,
-`entrypoint.sh` automatically extracts it to
-`/tmp/hackaithon_adapters/qwen35_qlora_mcq_mixed_resume_noeval` and sets
-`ADAPTER_DIR` when no adapter is explicitly provided. You can still override it
-by mounting your own adapter and setting `ADAPTER_DIR` or `ADAPTER_ROOT`.
+QLoRA adapter đã có sẵn trong repo tại:
 
-The final Law/Admin RAG DB is included as `outputs/rag_vector_db_final.zip`.
-During container startup, `entrypoint.sh` automatically extracts it to
-`/tmp/hackaithon_rag/rag_vector_db_final` and sets `LAW_ADMIN_VECTOR_DB_DIR`
-when `/rag/rag_vector_db_final` is not mounted. You can still override it by
-mounting your own RAG DB and setting `LAW_ADMIN_VECTOR_DB_DIR`.
+```text
+outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip
+```
 
-## Build
+Khi container khởi động, `entrypoint.sh` tự giải nén adapter này vào:
+
+```text
+/tmp/hackaithon_adapters/qwen35_qlora_mcq_mixed_resume_noeval
+```
+
+và tự set `ADAPTER_DIR` nếu người chạy chưa truyền adapter riêng.
+Nếu muốn dùng adapter khác, mount adapter đó và set `ADAPTER_DIR` hoặc `ADAPTER_ROOT`.
+
+Law/Admin RAG DB cũng đã có sẵn tại:
+
+```text
+outputs/rag_vector_db_final.zip
+```
+
+Khi container khởi động, `entrypoint.sh` tự giải nén RAG DB vào:
+
+```text
+/tmp/hackaithon_rag/rag_vector_db_final
+```
+
+và tự set `LAW_ADMIN_VECTOR_DB_DIR` nếu chưa mount `/rag/rag_vector_db_final`.
+Nếu muốn dùng RAG DB khác, mount DB đó và set `LAW_ADMIN_VECTOR_DB_DIR`.
+
+## Build Docker image
 
 ```bash
 docker build -t hackaithon-vllm-submission:latest .
 ```
 
-## Run
+## Chạy bằng Docker
 
-Input can be either `/data/private_test.csv` or `/data/public_test.csv`.
-The container auto-detects the file unless `DATA_PATH` is set.
+Container tự ưu tiên tìm `private_test.csv` rồi `public_test.csv` trong `/data`.
+Nếu muốn chỉ định rõ file input, set `DATA_PATH`.
 
 ```bash
 docker run --rm --gpus all \
@@ -59,7 +81,7 @@ docker run --rm --gpus all \
   hackaithon-vllm-submission:latest
 ```
 
-Optional explicit env form:
+Ví dụ với env rõ ràng:
 
 ```bash
 docker run --rm --gpus all \
@@ -73,14 +95,25 @@ docker run --rm --gpus all \
   hackaithon-vllm-submission:latest
 ```
 
-For local debugging without Docker, first extract the two zip artifacts under
-`outputs/`, then use the same package entrypoint:
+Sau khi chạy xong, file kết quả nằm tại:
+
+```text
+/output/pred.csv
+```
+
+## Chạy local không qua Docker
+
+Trước tiên giải nén hai artifact trong `outputs/`:
 
 ```bash
 mkdir -p outputs/qwen35_qlora_mcq_mixed_resume_noeval
 python -m zipfile -e outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip outputs/qwen35_qlora_mcq_mixed_resume_noeval
 python -m zipfile -e outputs/rag_vector_db_final.zip outputs
+```
 
+Sau đó chạy module entrypoint:
+
+```bash
 PYTHONPATH=src python -m hackaithon_vllm.run \
   --data /data/private_test.csv \
   --output /output/pred.csv \
@@ -90,34 +123,24 @@ PYTHONPATH=src python -m hackaithon_vllm.run \
   --rag-db-dir outputs/rag_vector_db_final
 ```
 
-Important env/CLI knobs:
+## Biến môi trường / CLI quan trọng
 
-- `DATA_PATH` / `--data`: input CSV or JSON file.
-- `PRED_PATH` / `--output`: output CSV path, default `/output/pred.csv`.
-- `MODEL_ROOT` / `--model-root`: parent folder containing the Qwen model.
-- `BGE_MODEL_DIR` / `--bge-model-dir`: BGE-M3 folder.
-- `ADAPTER_ROOT` / `--adapter-root`: parent folder containing the QLoRA adapter.
-- `ADAPTER_DIR` / `--adapter-dir`: exact adapter folder if known.
-- `LAW_ADMIN_VECTOR_DB_DIR` / `--rag-db-dir`: final Law/Admin vector DB folder.
-- `LIMIT` / `--limit`: optional smoke-test row limit.
+| Env / CLI | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `DATA_PATH` / `--data` | tự tìm trong `/data` | File input CSV/JSON. |
+| `PRED_PATH` / `--output` | `/output/pred.csv` | File prediction đầu ra. |
+| `MODEL_ROOT` / `--model-root` | `/models` | Thư mục cha chứa model Qwen. |
+| `MODEL_SELECT` / `--model-select` | `auto` | Cách chọn model local. |
+| `BGE_MODEL_DIR` / `--bge-model-dir` | `/bge/bge-m3` | Thư mục BGE-M3. |
+| `ADAPTER_DIR` / `--adapter-dir` | adapter tự giải nén | Thư mục adapter cụ thể. |
+| `ADAPTER_ROOT` / `--adapter-root` | `/adapters` | Thư mục cha để tìm adapter nếu không có `ADAPTER_DIR`. |
+| `LAW_ADMIN_VECTOR_DB_DIR` / `--rag-db-dir` | RAG DB tự giải nén | Thư mục vector DB cuối cùng. |
+| `CHECKPOINT_TO_RUN` / `--checkpoint` | `ckpt12_internal_rag` | Checkpoint production duy nhất được hỗ trợ. |
+| `LIMIT` / `--limit` | không giới hạn | Giới hạn số dòng để smoke test. |
 
-The entrypoint always writes:
+## Ghi chú vận hành
 
-```text
-/output/pred.csv
-```
-
-with exactly:
-
-```text
-qid,answer
-```
-
-## Notes
-
-The runtime intentionally keeps only the production checkpoint
-`ckpt12_internal_rag`; older development checkpoints were removed from the
-container path. The final public-test snapshot in `outputs/pred.csv` scored
-`429/463` against the current internal round-4 reference used during local
-review. This reference is not part of the container contract; it is only included
-here as development context.
+- Runtime cố ý chỉ giữ `ckpt12_internal_rag`; các checkpoint thử nghiệm cũ đã bị loại khỏi đường chạy container.
+- `outputs/pred.csv` là snapshot public-test đã review nội bộ.
+- Trong quá trình review local, snapshot này đạt `429/463` theo reference round 4 nội bộ.
+- Reference đó không thuộc contract container, chỉ là ngữ cảnh phát triển.
