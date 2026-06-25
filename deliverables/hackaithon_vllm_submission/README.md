@@ -1,50 +1,117 @@
 # Bộ nộp bài Hackaithon MCQ vLLM
 
-Thư mục này chứa gói suy luận có thể tái tạo (reproducible inference package) được trích xuất từ
-`hackaithon-vllm (1).ipynb`.
+Repository này chứa gói suy luận có thể tái tạo từ notebook
+`hackaithon-vllm (1).ipynb`. Runtime chỉ giữ checkpoint production
+`ckpt12_internal_rag` và ghi file nộp bài bắt buộc tại `/output/pred.csv`
+với đúng hai cột:
+
+```text
+qid,answer
+```
 
 ## Nội dung
 
-- `Dockerfile`: định nghĩa container cho Docker Hub.
-- `entrypoint.sh`: đọc `/data/private_test.csv` hoặc `/data/public_test.csv` và ghi ra `/output/pred.csv`.
-- `src/hackaithon-vllm.ipynb`: notebook runner mỏng cho gói Python.
-- `src/hackaithon_vllm_pipeline.py`: wrapper tương thích.
-- `src/hackaithon_vllm/`: gói Python đã được cấu trúc lại (refactored); runtime chỉ hỗ trợ `ckpt12_internal_rag`.
-- `outputs/pred.csv`: bản chụp dự đoán (prediction snapshot) mới nhất cho public-test.
-- `outputs/rag_vector_db_final.zip`: artifact cơ sở dữ liệu vector RAG cuối cùng về Luật/Hành chính.
-- `docs/method_report.tex`: tài liệu phương pháp bằng LaTeX.
+- `Dockerfile`: định nghĩa image để build/push Docker Hub.
+- `entrypoint.sh`: tự tìm file test trong `/data`, chạy pipeline và ghi `/output/pred.csv`.
+- `src/hackaithon-vllm.ipynb`: notebook runner mỏng gọi package Python.
+- `src/hackaithon_vllm_pipeline.py`: compatibility wrapper.
+- `src/hackaithon_vllm/`: package Python đã tách module, runtime ckpt12-only.
+- `outputs/pred.csv`: prediction snapshot mới nhất trên public test.
+- `outputs/rag_vector_db_final.zip`: artifact Law/Admin RAG vector DB cuối cùng.
+- `outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`: artifact QLoRA adapter production.
+- `docs/method_report.tex`: tài liệu thuyết minh phương pháp bằng LaTeX.
+- `docs/method_report.pdf`: bản PDF preview của tài liệu thuyết minh.
 
-## Các mount điểm dự kiến khi chạy (Expected Runtime Mounts)
+## Yêu cầu mount khi chạy
 
-Image này không tích hợp sẵn mô hình 9B, mô hình BGE, hoặc adapter LoRA. Vui lòng mount chúng:
+Image không bake sẵn model Qwen3.5-9B và BGE-M3, nên cần mount:
 
-- `/models`: Thư mục mô hình Hugging Face cục bộ của Qwen3.5-9B, hoặc thư mục cha chứa nó.
-- `/bge/bge-m3`: Thư mục mô hình Hugging Face cục bộ của BGE-M3.
-- `/adapters`: Thư mục adapter QLoRA, hoặc thư mục cha chứa `adapter_config.json`.
-- `/rag/rag_vector_db_final`: Thư mục RAG DB cuối cùng đã được giải nén.
-- `/data`: chứa `private_test.csv` hoặc `public_test.csv`.
-- `/output`: thư mục đầu ra cho `pred.csv`.
+- `/models`: thư mục model Qwen3.5-9B định dạng Hugging Face, hoặc thư mục cha chứa model.
+- `/bge/bge-m3`: thư mục model BGE-M3 định dạng Hugging Face.
+- `/data`: chứa `private_test.csv`, `public_test.csv` hoặc biến thể `.json`.
+- `/output`: thư mục nhận file `/output/pred.csv`.
 
-## Build
+QLoRA adapter đã có sẵn trong repo tại:
+
+```text
+outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip
+```
+
+Khi container khởi động, `entrypoint.sh` tự giải nén adapter này vào:
+
+```text
+/tmp/hackaithon_adapters/qwen35_qlora_mcq_mixed_resume_noeval
+```
+
+và tự set `ADAPTER_DIR` nếu người chạy chưa truyền adapter riêng.
+Nếu muốn dùng adapter khác, mount adapter đó và set `ADAPTER_DIR` hoặc `ADAPTER_ROOT`.
+
+Law/Admin RAG DB cũng đã có sẵn tại:
+
+```text
+outputs/rag_vector_db_final.zip
+```
+
+Khi container khởi động, `entrypoint.sh` tự giải nén RAG DB vào:
+
+```text
+/tmp/hackaithon_rag/rag_vector_db_final
+```
+
+và tự set `LAW_ADMIN_VECTOR_DB_DIR` nếu chưa mount `/rag/rag_vector_db_final`.
+Nếu muốn dùng RAG DB khác, mount DB đó và set `LAW_ADMIN_VECTOR_DB_DIR`.
+
+## Build Docker image
 
 ```bash
 docker build -t hackaithon-vllm-submission:latest .
 ```
 
-## Chạy (Run)
+## Chạy bằng Docker
+
+Container tự ưu tiên tìm `private_test.csv` rồi `public_test.csv` trong `/data`.
+Nếu muốn chỉ định rõ file input, set `DATA_PATH`.
 
 ```bash
 docker run --rm --gpus all \
   -v /path/to/test_data:/data:ro \
   -v /path/to/qwen_models:/models:ro \
   -v /path/to/bge-m3:/bge/bge-m3:ro \
-  -v /path/to/adapter_parent:/adapters:ro \
-  -v /path/to/rag_vector_db_final:/rag/rag_vector_db_final:ro \
   -v /path/to/output:/output \
   hackaithon-vllm-submission:latest
 ```
 
-Entrypoint tương đương cho module là:
+Ví dụ với env rõ ràng:
+
+```bash
+docker run --rm --gpus all \
+  -e DATA_PATH=/data/private_test.csv \
+  -e PRED_PATH=/output/pred.csv \
+  -e CHECKPOINT_TO_RUN=ckpt12_internal_rag \
+  -v /path/to/test_data:/data:ro \
+  -v /path/to/qwen_models:/models:ro \
+  -v /path/to/bge-m3:/bge/bge-m3:ro \
+  -v /path/to/output:/output \
+  hackaithon-vllm-submission:latest
+```
+
+Sau khi chạy xong, file kết quả nằm tại:
+
+```text
+/output/pred.csv
+```
+
+## Chạy local không qua Docker
+
+Trước tiên giải nén hai artifact trong `outputs/`:
+
+```bash
+mkdir -p outputs/qwen35_qlora_mcq_mixed_resume_noeval
+python -m zipfile -e outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip outputs/qwen35_qlora_mcq_mixed_resume_noeval
+python -m zipfile -e outputs/rag_vector_db_final.zip outputs
+```
+
+Sau đó chạy module entrypoint:
 
 ```bash
 PYTHONPATH=src python -m hackaithon_vllm.run \
@@ -52,27 +119,28 @@ PYTHONPATH=src python -m hackaithon_vllm.run \
   --output /output/pred.csv \
   --model-root /models \
   --bge-model-dir /bge/bge-m3 \
-  --adapter-root /adapters \
-  --rag-db-dir /rag/rag_vector_db_final
+  --adapter-dir outputs/qwen35_qlora_mcq_mixed_resume_noeval \
+  --rag-db-dir outputs/rag_vector_db_final
 ```
 
-Entrypoint sẽ ghi ra:
+## Biến môi trường / CLI quan trọng
 
-```text
-/output/pred.csv
-```
+| Env / CLI | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `DATA_PATH` / `--data` | tự tìm trong `/data` | File input CSV/JSON. |
+| `PRED_PATH` / `--output` | `/output/pred.csv` | File prediction đầu ra. |
+| `MODEL_ROOT` / `--model-root` | `/models` | Thư mục cha chứa model Qwen. |
+| `MODEL_SELECT` / `--model-select` | `auto` | Cách chọn model local. |
+| `BGE_MODEL_DIR` / `--bge-model-dir` | `/bge/bge-m3` | Thư mục BGE-M3. |
+| `ADAPTER_DIR` / `--adapter-dir` | adapter tự giải nén | Thư mục adapter cụ thể. |
+| `ADAPTER_ROOT` / `--adapter-root` | `/adapters` | Thư mục cha để tìm adapter nếu không có `ADAPTER_DIR`. |
+| `LAW_ADMIN_VECTOR_DB_DIR` / `--rag-db-dir` | RAG DB tự giải nén | Thư mục vector DB cuối cùng. |
+| `CHECKPOINT_TO_RUN` / `--checkpoint` | `ckpt12_internal_rag` | Checkpoint production duy nhất được hỗ trợ. |
+| `LIMIT` / `--limit` | không giới hạn | Giới hạn số dòng để smoke test. |
 
-với định dạng chính xác là:
+## Ghi chú vận hành
 
-```text
-qid,answer
-```
-
-## Ghi chú
-
-Runtime cố ý chỉ giữ lại checkpoint chạy thực tế (production)
-`ckpt12_internal_rag`; các checkpoint phát triển cũ đã bị loại bỏ khỏi
-đường dẫn của container. Bản chụp public-test cuối cùng ở `outputs/pred.csv` đạt
-điểm `429/463` dựa trên tham chiếu nội bộ vòng 4 (round-4 reference) hiện tại được sử dụng trong quá trình
-đánh giá cục bộ. Tham chiếu này không thuộc phạm vi hợp đồng container; nó chỉ được đưa vào
-đây như một ngữ cảnh phát triển.
+- Runtime cố ý chỉ giữ `ckpt12_internal_rag`; các checkpoint thử nghiệm cũ đã bị loại khỏi đường chạy container.
+- `outputs/pred.csv` là snapshot public-test đã review nội bộ.
+- Trong quá trình review local, snapshot này đạt `429/463` theo reference round 4 nội bộ.
+- Reference đó không thuộc contract container, chỉ là ngữ cảnh phát triển.
