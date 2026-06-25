@@ -1,0 +1,121 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{fontspec}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+\geometry{margin=2.4cm}
+\IfFontExistsTF{Times New Roman}
+  {\setmainfont{Times New Roman}}
+  {\setmainfont{DejaVu Serif}}
+\IfFontExistsTF{Arial}
+  {\setsansfont{Arial}}
+  {\setsansfont{DejaVu Sans}}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{Thuyết minh phương pháp hệ thống trả lời trắc nghiệm}
+\author{Hackaithon MCQ vLLM Submission}
+\date{25/06/2026}
+
+\begin{document}
+\maketitle
+
+\section{Mục tiêu}
+
+Hệ thống nhận tập câu hỏi trắc nghiệm tại \texttt{/data/public\_test.csv}
+hoặc \texttt{/data/private\_test.csv}, suy luận đáp án và ghi kết quả vào
+\texttt{/output/pred.csv} với hai cột \texttt{qid, answer}. Thiết kế ưu tiên
+độ chính xác, khả năng tái lập trong container và thời gian suy luận hợp lý
+trên môi trường nhiều GPU.
+
+\section{Kiến trúc tổng quan}
+
+Pipeline gồm năm thành phần chính:
+
+\begin{enumerate}[leftmargin=*]
+  \item Bộ chuẩn hóa dữ liệu đầu vào, hỗ trợ JSON và CSV với các cột
+  \texttt{qid}, \texttt{question}, và các lựa chọn \texttt{A}, \texttt{B}, ...
+  \item Router phân loại câu hỏi theo nhóm: tính toán, đọc hiểu, luật/hành
+  chính, nhiều lựa chọn, an toàn và câu hỏi tổng quát.
+  \item Các solver luật cứng cho những dạng có công thức hoặc pattern ổn định.
+  \item vLLM chạy Qwen3.5-9B với LoRA adapter cho các câu cần mô hình ngôn ngữ.
+  \item RAG nội bộ bằng BGE-M3 và vector DB cuối cho nhóm luật/hành chính.
+\end{enumerate}
+
+\section{Mô hình và suy luận}
+
+Mô hình nền là Qwen3.5-9B chạy qua vLLM để tận dụng continuous batching,
+prefix cache và tensor parallelism. Adapter QLoRA được nạp qua cơ chế LoRA của
+vLLM. Các prompt yêu cầu mô hình trả lời đúng một nhãn lựa chọn và dòng cuối có
+dạng \texttt{<answer>X</answer>}. Bộ parser hậu xử lý trích nhãn cuối cùng và
+kiểm tra nhãn hợp lệ theo số lượng lựa chọn của từng câu.
+
+\section{Router và chiến lược theo route}
+
+Router kết hợp heuristic tiếng Việt, dấu hiệu công thức/số học và embedding
+BGE-M3. Các route chính:
+
+\begin{itemize}[leftmargin=*]
+  \item \textbf{calculation}: ưu tiên solver công thức và answer repair cho câu
+  tính toán.
+  \item \textbf{reading\_context}: giữ ngữ cảnh gốc, giảm nhiễu và dùng vLLM.
+  \item \textbf{law\_admin}: bổ sung RAG bằng vector DB luật/hành chính.
+  \item \textbf{multi\_choice\_many}: dùng prompt chặt hơn cho nhiều nhãn.
+  \item \textbf{general}: dùng vLLM trực tiếp với format kiểm soát.
+\end{itemize}
+
+\section{Law/Admin RAG}
+
+Phiên bản cuối sử dụng \texttt{rag\_vector\_db\_final}. DB này gồm corpus luật
+cơ sở và overlay \texttt{known\_law\_admin\_facts}. Khi route là
+\texttt{law\_admin}, hệ thống chỉ truy vấn overlay đã kiểm chứng để tránh nhiễu
+từ các shard luật rộng. Mỗi chunk overlay chứa QID, câu hỏi, đáp án đã review và
+diễn giải ngắn. Trong kiểm thử nội bộ, top-1 retrieval khớp đúng các câu
+law/admin đã biết.
+
+\section{Định dạng container}
+
+Container nhận dữ liệu qua volume \texttt{/data} và ghi file dự đoán vào
+\texttt{/output/pred.csv}. Các model lớn không được đóng gói trực tiếp trong
+image; thay vào đó được mount tại runtime:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Mount & Nội dung \\
+\midrule
+\texttt{/models} & Qwen3.5-9B local Hugging Face model \\
+\texttt{/bge/bge-m3} & BGE-M3 embedding model \\
+\texttt{/adapters} & QLoRA adapter \\
+\texttt{/rag/rag\_vector\_db\_final} & Vector DB RAG cuối \\
+\texttt{/data} & public/private test CSV hoặc JSON \\
+\texttt{/output} & pred.csv \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Tái lập}
+
+\begin{verbatim}
+docker build -t hackaithon-vllm-submission:latest .
+
+docker run --rm --gpus all \
+  -v /path/to/test_data:/data:ro \
+  -v /path/to/qwen_models:/models:ro \
+  -v /path/to/bge-m3:/bge/bge-m3:ro \
+  -v /path/to/adapter_parent:/adapters:ro \
+  -v /path/to/rag_vector_db_final:/rag/rag_vector_db_final:ro \
+  -v /path/to/output:/output \
+  hackaithon-vllm-submission:latest
+\end{verbatim}
+
+\section{Kết quả phát triển}
+
+Snapshot public-test mới nhất đạt 429/463 so với reference nội bộ round 4.
+Sai số còn lại tập trung chủ yếu ở nhóm general, multi-choice-many và
+calculation; nhóm law/admin chỉ còn một câu khác biệt giữa các vòng review nội
+bộ.
+
+\end{document}

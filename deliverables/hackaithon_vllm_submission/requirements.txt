@@ -1,0 +1,10 @@
+accelerate
+datasets
+huggingface_hub
+numpy
+pandas
+peft
+sentencepiece
+safetensors
+tqdm
+transformers
