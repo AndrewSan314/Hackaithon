@@ -32,6 +32,7 @@ HF_MODEL_ROOT.mkdir(parents=True, exist_ok=True)
 # 4. "hf"         : tải model từ Hugging Face theo MODEL_ID bên dưới
 # 5. "auto_or_hf" : ưu tiên local, nếu không có local thì tải từ Hugging Face
 MODEL_SELECT = os.environ.get("MODEL_SELECT", "auto")
+MODEL_ID = os.environ.get("MODEL_ID") or os.environ.get("HF_MODEL_ID")
 
 
 # Nếu model HF đã tải rồi thì dùng lại, không tải lại
@@ -68,7 +69,13 @@ def find_data_path() -> Path:
 def load_json_safe(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except json.JSONDecodeError as exc:
+        import warnings
+        warnings.warn(f"Invalid JSON in {path}: {exc}", RuntimeWarning)
+        return {}
+    except UnicodeDecodeError as exc:
+        import warnings
+        warnings.warn(f"Cannot decode JSON in {path}: {exc}", RuntimeWarning)
         return {}
 
 
@@ -237,12 +244,21 @@ def download_model_from_hf(model_id: str) -> Path:
     return downloaded_path
 
 
+def require_hf_model_id() -> str:
+    if not MODEL_ID:
+        raise ValueError(
+            "MODEL_SELECT requires a Hugging Face model id. "
+            "Set MODEL_ID or HF_MODEL_ID explicitly."
+        )
+    return MODEL_ID
+
+
 def select_model(candidates, select="auto") -> Path:
     select_str = str(select).lower()
 
     # Chọn model HF trực tiếp
     if select_str in ["hf", "download", "huggingface"]:
-        return download_model_from_hf(MODEL_ID)
+        return download_model_from_hf(require_hf_model_id())
 
     # Ưu tiên local, không có thì tải HF
     if select_str in ["auto_or_hf", "auto_hf"]:
@@ -254,7 +270,7 @@ def select_model(candidates, select="auto") -> Path:
             return chosen["path"]
 
         print("Không có model local, chuyển sang tải HF.")
-        return download_model_from_hf(MODEL_ID)
+        return download_model_from_hf(require_hf_model_id())
 
     if not candidates:
         raise FileNotFoundError(
@@ -1105,7 +1121,8 @@ def choice_labels(choices):
 
 
 def valid_label(answer, choices):
-    return isinstance(answer, str) and answer.upper() in set(choice_labels(choices))
+    normalized = str(answer).strip().upper() if isinstance(answer, str) else ""
+    return len(normalized) == 1 and normalized in set(choice_labels(choices))
 
 
 def parse_answer_simple(text, choices):
@@ -1137,7 +1154,7 @@ def parse_answer_text(text, choices):
     import unicodedata
 
     def unaccent_vietnamese(value):
-        text = str(value or "").replace("?", "D").replace("?", "d")
+        text = str(value or "").replace("\u0110", "D").replace("\u0111", "d")
         return unicodedata.normalize("NFKD", text).encode("ASCII", "ignore").decode("ascii")
 
     def clean_label(value):
@@ -1565,6 +1582,8 @@ def classify_question(question, choices):
 
 
 def render_choices(choices):
+    if len(choices) > len(LABELS):
+        raise ValueError(f"At most {len(LABELS)} choices are supported; got {len(choices)}.")
     lines = []
     for i, choice in enumerate(choices):
         lines.append(f"{LABELS[i]}. {choice}")
@@ -4528,7 +4547,7 @@ from pathlib import Path
 # ============================================================
 # 1. ENV — đặt trước transformers/vLLM
 # ============================================================
-os.environ.update({
+for key, value in {
     "USE_TORCH": "1",
     "USE_TF": "0",
     "USE_FLAX": "0",
@@ -4537,14 +4556,16 @@ os.environ.update({
     "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
     "TOKENIZERS_PARALLELISM": "false",
     "OMP_NUM_THREADS": "1",
-})
+}.items():
+    os.environ.setdefault(key, value)
 
-for key in [
-    "VLLM_USE_V1",
-    "VLLM_QUANTIZATION",
-    "VLLM_ATTENTION_BACKEND",
-]:
-    os.environ.pop(key, None)
+if os.environ.get("CLEAR_CONFLICTING_VLLM_ENV", "0").lower() in {"1", "true", "yes"}:
+    for key in [
+        "VLLM_USE_V1",
+        "VLLM_QUANTIZATION",
+        "VLLM_ATTENTION_BACKEND",
+    ]:
+        os.environ.pop(key, None)
 
 
 # ============================================================

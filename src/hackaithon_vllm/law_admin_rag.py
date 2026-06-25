@@ -27,11 +27,15 @@ def load_law_admin_vector_db(path: Path) -> LawAdminRAGState:
         if not required.exists():
             raise FileNotFoundError(required)
 
-    chunks = [
-        json.loads(line)
-        for line in chunks_path.read_text(encoding="utf-8-sig").splitlines()
-        if line.strip()
-    ]
+    chunks = []
+    with chunks_path.open("r", encoding="utf-8-sig") as f:
+        for line_number, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                chunks.append(json.loads(line))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Invalid JSONL at {chunks_path}:{line_number}: {exc}") from exc
     embeddings = np.load(embeddings_path, mmap_mode="r")
     domain_index = json.loads(domain_index_path.read_text(encoding="utf-8"))
     metadata = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}

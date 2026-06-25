@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -60,7 +61,12 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
                         parsed = json.loads(row["choices"])
                         if isinstance(parsed, list):
                             choices = parsed
-                    except Exception:
+                    except json.JSONDecodeError as exc:
+                        warnings.warn(
+                            f"Could not parse JSON choices for qid={qid or '<unknown>'}; "
+                            f"falling back to '||' split: {exc}",
+                            RuntimeWarning,
+                        )
                         choices = [x.strip() for x in str(row["choices"]).split("||") if x.strip()]
                 if not qid or not question or not choices:
                     raise ValueError(f"Cannot parse CSV row into qid/question/choices: {row}")

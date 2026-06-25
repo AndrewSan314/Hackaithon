@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import warnings
 from pathlib import Path
 
 
@@ -11,7 +12,11 @@ def has_model_weights(model_dir: Path) -> bool:
 def load_json_safe(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except json.JSONDecodeError as exc:
+        warnings.warn(f"Invalid JSON in {path}: {exc}", RuntimeWarning)
+        return {}
+    except UnicodeDecodeError as exc:
+        warnings.warn(f"Cannot decode JSON in {path}: {exc}", RuntimeWarning)
         return {}
 
 
