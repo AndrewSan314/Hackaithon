@@ -14,22 +14,30 @@ This repository root is the reproducible inference package derived from
 - `src/hackaithon_vllm/`: refactored Python package; runtime supports `ckpt12_internal_rag` only.
 - `outputs/pred.csv`: latest public-test prediction snapshot.
 - `outputs/rag_vector_db_final.zip`: final Law/Admin RAG vector DB artifact.
+- `outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`: production QLoRA adapter artifact.
 - `docs/method_report.tex`: LaTeX method document.
 
 ## Expected Runtime Mounts
 
-The image does not bake in the 9B model, BGE model, or LoRA adapter. Mount them:
+The image does not bake in the 9B model or BGE model. Mount them:
 
 - `/models`: Qwen3.5-9B local Hugging Face model folder, or a parent containing it.
 - `/bge/bge-m3`: BGE-M3 local Hugging Face model folder.
-- `/adapters`: QLoRA adapter folder, or a parent containing `adapter_config.json`.
-- `/rag/rag_vector_db_final`: extracted final RAG DB folder.
 - `/data`: contains `private_test.csv` or `public_test.csv`.
 - `/output`: output directory for `pred.csv`.
 
-If the final Law/Admin RAG DB is provided from this repository, extract
-`outputs/rag_vector_db_final.zip` first and mount the extracted folder as
-`/rag/rag_vector_db_final`.
+The QLoRA adapter is included in this repository as
+`outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip`. During container startup,
+`entrypoint.sh` automatically extracts it to
+`/tmp/hackaithon_adapters/qwen35_qlora_mcq_mixed_resume_noeval` and sets
+`ADAPTER_DIR` when no adapter is explicitly provided. You can still override it
+by mounting your own adapter and setting `ADAPTER_DIR` or `ADAPTER_ROOT`.
+
+The final Law/Admin RAG DB is included as `outputs/rag_vector_db_final.zip`.
+During container startup, `entrypoint.sh` automatically extracts it to
+`/tmp/hackaithon_rag/rag_vector_db_final` and sets `LAW_ADMIN_VECTOR_DB_DIR`
+when `/rag/rag_vector_db_final` is not mounted. You can still override it by
+mounting your own RAG DB and setting `LAW_ADMIN_VECTOR_DB_DIR`.
 
 ## Build
 
@@ -47,8 +55,6 @@ docker run --rm --gpus all \
   -v /path/to/test_data:/data:ro \
   -v /path/to/qwen_models:/models:ro \
   -v /path/to/bge-m3:/bge/bge-m3:ro \
-  -v /path/to/adapter_parent:/adapters:ro \
-  -v /path/to/rag_vector_db_final:/rag/rag_vector_db_final:ro \
   -v /path/to/output:/output \
   hackaithon-vllm-submission:latest
 ```
@@ -63,22 +69,25 @@ docker run --rm --gpus all \
   -v /path/to/test_data:/data:ro \
   -v /path/to/qwen_models:/models:ro \
   -v /path/to/bge-m3:/bge/bge-m3:ro \
-  -v /path/to/adapter_parent:/adapters:ro \
-  -v /path/to/rag_vector_db_final:/rag/rag_vector_db_final:ro \
   -v /path/to/output:/output \
   hackaithon-vllm-submission:latest
 ```
 
-For local debugging without Docker, use the same package entrypoint:
+For local debugging without Docker, first extract the two zip artifacts under
+`outputs/`, then use the same package entrypoint:
 
 ```bash
+mkdir -p outputs/qwen35_qlora_mcq_mixed_resume_noeval
+python -m zipfile -e outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip outputs/qwen35_qlora_mcq_mixed_resume_noeval
+python -m zipfile -e outputs/rag_vector_db_final.zip outputs
+
 PYTHONPATH=src python -m hackaithon_vllm.run \
   --data /data/private_test.csv \
   --output /output/pred.csv \
   --model-root /models \
   --bge-model-dir /bge/bge-m3 \
-  --adapter-root /adapters \
-  --rag-db-dir /rag/rag_vector_db_final
+  --adapter-dir outputs/qwen35_qlora_mcq_mixed_resume_noeval \
+  --rag-db-dir outputs/rag_vector_db_final
 ```
 
 Important env/CLI knobs:
