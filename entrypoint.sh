@@ -90,7 +90,11 @@ echo "PRED_PATH=${PRED_PATH}"
 
 PYTHONPATH=/app/src python -m hackaithon_vllm.run
 
-test -f "${PRED_PATH}"
+if [[ ! -f "${PRED_PATH}" ]]; then
+  echo "Expected prediction file was not created: ${PRED_PATH}" >&2
+  exit 3
+fi
+
 python - <<'PY'
 import csv
 import os

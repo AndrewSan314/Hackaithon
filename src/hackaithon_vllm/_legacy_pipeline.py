@@ -1169,6 +1169,12 @@ def parse_answer_text(text, choices):
             else:
                 normalized.append(ch)
         s = "".join(normalized)
+        exact = re.fullmatch(r"\s*([A-Z])\s*", s)
+        if exact:
+            return exact.group(1)
+        punctuated = re.fullmatch(r"\s*([A-Z])[\).:;\-]\s*", s)
+        if punctuated:
+            return punctuated.group(1)
         if len(s) > 40:
             keyword_labels = []
             keyword_patterns = [
@@ -1181,15 +1187,6 @@ def parse_answer_text(text, choices):
                 if label in valid:
                     return label
             return None
-
-        standalone = re.findall(r"(?<![A-Z])([A-Z])(?![A-Z])", s)
-        for label in reversed(standalone):
-            if label in valid:
-                return label
-        if len(s) <= 24:
-            for label in reversed(re.findall(r"[A-Z]", s)):
-                if label in valid:
-                    return label
         return None
 
     def tag_context_is_instruction(source, start, end):

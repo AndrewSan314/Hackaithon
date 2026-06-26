@@ -37,7 +37,7 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
         rows = json.loads(path.read_text(encoding="utf-8-sig"))
         if not isinstance(rows, list):
             raise ValueError("JSON test file must contain a list of rows.")
-        return rows
+        return [normalize_row(row) for row in rows]
 
     if suffix == ".csv":
         rows: list[dict[str, Any]] = []
@@ -70,7 +70,31 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
                         choices = [x.strip() for x in str(row["choices"]).split("||") if x.strip()]
                 if not qid or not question or not choices:
                     raise ValueError(f"Cannot parse CSV row into qid/question/choices: {row}")
-                rows.append({"qid": qid, "question": question, "choices": choices})
+                rows.append({"qid": str(qid), "question": str(question), "choices": choices})
         return rows
 
     raise ValueError(f"Unsupported data file type: {path}")
+
+
+def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
+    qid = row.get("qid") or row.get("id") or row.get("question_id")
+    question = row.get("question") or row.get("prompt") or row.get("content")
+    choices = row.get("choices") or row.get("options")
+    if choices is None:
+        choices = []
+        for label in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            value = (
+                row.get(label)
+                or row.get(label.lower())
+                or row.get(f"choice_{label}")
+                or row.get(f"option_{label}")
+            )
+            if value not in (None, ""):
+                choices.append(value)
+    if not isinstance(choices, list):
+        raise ValueError(f"JSON row choices/options must be a list: {row}")
+    if not qid or not question or not choices:
+        raise ValueError(f"Cannot parse JSON row into qid/question/choices: {row}")
+    normalized = dict(row)
+    normalized.update({"qid": str(qid), "question": str(question), "choices": choices})
+    return normalized

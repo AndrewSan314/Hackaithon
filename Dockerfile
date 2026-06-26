@@ -15,6 +15,7 @@ RUN python -m pip install --no-cache-dir -r /app/requirements.txt
 COPY outputs /app/outputs
 COPY src /app/src
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN python -c "from pathlib import Path; p=Path('/app/entrypoint.sh'); p.write_bytes(p.read_bytes().replace(b'\r\n', b'\n'))" \
+    && chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
