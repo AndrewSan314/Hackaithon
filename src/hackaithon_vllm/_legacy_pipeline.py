@@ -28,10 +28,10 @@ HF_MODEL_ROOT.mkdir(parents=True, exist_ok=True)
 # Có 5 cách chọn:
 # 1. "auto"        : tự chọn model local có điểm cao nhất trong /kaggle/input
 # 2. số thứ tự     : ví dụ 0, 1, 2...
-# 3. keyword      : ví dụ "awq", "gptq", "qwen", "9b", "instruct"
+# 3. keyword      : ví dụ "awq", "gptq", "qwen", "4b", "instruct"
 # 4. "hf"         : tải model từ Hugging Face theo MODEL_ID bên dưới
 # 5. "auto_or_hf" : ưu tiên local, nếu không có local thì tải từ Hugging Face
-MODEL_SELECT = os.environ.get("MODEL_SELECT", "auto")
+MODEL_SELECT = os.environ.get("MODEL_SELECT", "4b")
 MODEL_ID = os.environ.get("MODEL_ID") or os.environ.get("HF_MODEL_ID")
 
 
@@ -43,7 +43,7 @@ AUTO_PREFER_KEYWORDS = [
     "qwen3.5",
     "qwen3_5",
     "qwen",
-    "9b",
+    "4b",
     "awq",
 ]
 
@@ -4615,10 +4615,10 @@ if not (model_dir / "config.json").exists():
 # 4. LoRA adapter discovery
 # ============================================================
 # Có thể set thẳng nếu muốn:
-# ADAPTER_DIR = "/kaggle/input/your-adapter-dataset/qwen35_qlora_mcq_mixed_resume_noeval"
+# ADAPTER_DIR = "/kaggle/input/your-adapter-dataset/qwen35_4b_qlora_mcq_mixed"
 
 ADAPTER_SELECT = globals().get("ADAPTER_DIR", os.environ.get("ADAPTER_DIR", "auto"))
-REQUIRE_LORA = True
+REQUIRE_LORA = os.environ.get("REQUIRE_LORA", "0").strip().lower() not in {"0", "false", "no"}
 
 
 def has_lora_adapter(path: Path) -> bool:
@@ -4705,7 +4705,7 @@ gpu_output = subprocess.check_output(["nvidia-smi", "-L"], text=True)
 gpu_count = sum(line.startswith("GPU ") for line in gpu_output.splitlines())
 
 if gpu_count < 2:
-    raise RuntimeError(f"Qwen3.5-9B FP16 TP=2 cần 2 GPU, hiện chỉ thấy {gpu_count}.")
+    raise RuntimeError(f"Qwen3.5-4B FP16 TP=2 cần 2 GPU, hiện chỉ thấy {gpu_count}.")
 
 
 # ============================================================

@@ -20,7 +20,7 @@ def load_json_safe(path: Path) -> dict:
         return {}
 
 
-def discover_models(model_root: Path, work_dir: Path, prefer_keywords: tuple[str, ...] = ("qwen3.5", "qwen3_5", "qwen", "9b", "awq")) -> list[dict]:
+def discover_models(model_root: Path, work_dir: Path, prefer_keywords: tuple[str, ...] = ("qwen3.5", "qwen3_5", "qwen", "4b", "awq")) -> list[dict]:
     candidates = []
     for root in (model_root, Path("/kaggle/input"), work_dir / "hf_models"):
         if not root.exists():

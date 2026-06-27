@@ -8,3 +8,4 @@ sentencepiece
 safetensors
 tqdm
 transformers
+vllm

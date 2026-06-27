@@ -24,9 +24,10 @@
 
 \section{Mục tiêu}
 
-Hệ thống nhận tập câu hỏi trắc nghiệm tại \texttt{/data/public\_test.csv}
-hoặc \texttt{/data/private\_test.csv}, suy luận đáp án và ghi kết quả vào
-\texttt{/output/pred.csv} với hai cột \texttt{qid, answer}. Thiết kế ưu tiên
+Hệ thống nhận tập câu hỏi trắc nghiệm chính thức tại \texttt{/code/private\_test.json},
+suy luận đáp án và ghi kết quả vào \texttt{/code/submission.csv} và
+\texttt{/code/submission\_time.csv}. Runtime cũng ghi bản sao vào \texttt{/output}
+để thuận tiện debug. Thiết kế ưu tiên
 độ chính xác, khả năng tái lập trong container và thời gian suy luận hợp lý
 trên môi trường nhiều GPU.
 
@@ -40,13 +41,13 @@ Pipeline gồm năm thành phần chính:
   \item Router phân loại câu hỏi theo nhóm: tính toán, đọc hiểu, luật/hành
   chính, nhiều lựa chọn, an toàn và câu hỏi tổng quát.
   \item Các solver luật cứng cho những dạng có công thức hoặc pattern ổn định.
-  \item vLLM chạy Qwen3.5-9B với LoRA adapter cho các câu cần mô hình ngôn ngữ.
+  \item vLLM chạy Qwen3.5-4B với LoRA adapter cho các câu cần mô hình ngôn ngữ.
   \item RAG nội bộ bằng BGE-M3 và vector DB cuối cho nhóm luật/hành chính.
 \end{enumerate}
 
 \section{Mô hình và suy luận}
 
-Mô hình nền là Qwen3.5-9B chạy qua vLLM để tận dụng continuous batching,
+Mô hình nền là Qwen3.5-4B chạy qua vLLM để tận dụng continuous batching,
 prefix cache và tensor parallelism. Adapter QLoRA được nạp qua cơ chế LoRA của
 vLLM. Các prompt yêu cầu mô hình trả lời đúng một nhãn lựa chọn và dòng cuối có
 dạng \texttt{<answer>X</answer>}. Bộ parser hậu xử lý trích nhãn cuối cùng và
@@ -77,8 +78,9 @@ law/admin đã biết.
 
 \section{Định dạng container}
 
-Container nhận dữ liệu qua volume \texttt{/data} và ghi file dự đoán vào
-\texttt{/output/pred.csv}. Các model lớn không được đóng gói trực tiếp trong
+Container nhận dữ liệu qua volume \texttt{/code} và ghi file dự đoán vào
+\texttt{/code/submission.csv}, \texttt{/code/submission\_time.csv}; đồng thời tạo
+bản sao \texttt{/output/pred.csv} để dễ debug. Các model lớn không được đóng gói trực tiếp trong
 image; thay vào đó được mount tại runtime:
 
 \begin{center}
@@ -86,23 +88,29 @@ image; thay vào đó được mount tại runtime:
 \toprule
 Mount & Nội dung \\
 \midrule
-\texttt{/models} & Qwen3.5-9B local Hugging Face model \\
+\texttt{/models} & Qwen3.5-4B local Hugging Face model \\
 \texttt{/bge/bge-m3} & BGE-M3 embedding model \\
 \texttt{/adapters} & QLoRA adapter \\
 \texttt{/rag/rag\_vector\_db\_final} & Vector DB RAG cuối \\
+\texttt{/code} & private\_test.json, submission.csv, submission\_time.csv \\
 \texttt{/data} & public/private test CSV hoặc JSON \\
-\texttt{/output} & pred.csv \\
+\texttt{/output} & pred.csv, bản sao submission.csv/submission\_time.csv \\
 \bottomrule
 \end{tabular}
 \end{center}
+
+Theo thông tin BTC bổ sung, môi trường chấm dùng NVIDIA RTX 5060 Ti 16GB
+VRAM và RAM 32GB. Lệnh chạy Docker vì vậy khai báo rõ \texttt{--ipc=host}
+để vLLM có shared memory ổn định.
 
 \section{Tái lập}
 
 \begin{verbatim}
 docker build -t hackaithon-vllm-submission:latest .
 
-docker run --rm --gpus all \
+docker run --rm --gpus all --ipc=host \
   -v /path/to/test_data:/data:ro \
+  -v /path/to/private_test_dir:/code \
   -v /path/to/qwen_models:/models:ro \
   -v /path/to/bge-m3:/bge/bge-m3:ro \
   -v /path/to/adapter_parent:/adapters:ro \

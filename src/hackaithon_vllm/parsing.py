@@ -24,9 +24,10 @@ def valid_label(answer: str, choices: list[str]) -> bool:
 
 
 def parse_answer_text(text: str, choices: list[str]) -> str | None:
+    raw_text = str(text)
     labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[: len(choices)]
     pattern = rf"<answer>\s*([{re.escape(labels)}])\s*</answer>"
-    matches = re.findall(pattern, str(text), flags=re.I)
+    matches = re.findall(pattern, raw_text, flags=re.I)
     if matches:
         return matches[-1].upper()
     explicit_patterns = [
@@ -34,7 +35,6 @@ def parse_answer_text(text: str, choices: list[str]) -> str | None:
         rf"\b([{re.escape(labels)}])\s*(?:IS\s+)?(?:CORRECT|BEST|CLOSEST)\b",
     ]
     hits: list[str] = []
-    upper_text = str(text).upper()
     for explicit in explicit_patterns:
-        hits.extend(re.findall(explicit, upper_text))
+        hits.extend(re.findall(explicit, raw_text, flags=re.I))
     return hits[-1].upper() if hits else None

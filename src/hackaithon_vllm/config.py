@@ -30,7 +30,7 @@ class PipelineConfig:
             work_dir=Path(os.environ.get("WORK_DIR", "/output")),
             pred_path=Path(os.environ.get("PRED_PATH", "/output/pred.csv")),
             model_root=Path(os.environ.get("MODEL_ROOT", "/models")),
-            model_select=os.environ.get("MODEL_SELECT", "auto"),
+            model_select=os.environ.get("MODEL_SELECT", "4b"),
             bge_model_dir=Path(os.environ.get("BGE_MODEL_DIR", "/bge/bge-m3")),
             adapter_root=Path(os.environ.get("ADAPTER_ROOT", "/adapters")),
             adapter_dir=Path(os.environ["ADAPTER_DIR"]) if os.environ.get("ADAPTER_DIR") else None,

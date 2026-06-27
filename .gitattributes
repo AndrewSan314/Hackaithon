@@ -1,2 +1,7 @@
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+requirements.txt text eol=lf
 outputs/rag_vector_db_final.zip filter=lfs diff=lfs merge=lfs -text
-outputs/qwen35_qlora_mcq_mixed_resume_noeval.zip filter=lfs diff=lfs merge=lfs -text
+outputs/qwen35_4b_qlora_mcq_mixed.zip filter=lfs diff=lfs merge=lfs -text
